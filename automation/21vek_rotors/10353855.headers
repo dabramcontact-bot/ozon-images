@@ -1,0 +1,51 @@
+HTTP/2 308 
+set-cookie: Settings[ft_split_group]=1000; path=/; expires=Fri, 06 Aug 2027 13:35:43 GMT; domain=21vek.by
+set-cookie: Settings[ft_split_group]=2067; path=/; expires=Fri, 06 Aug 2027 13:35:43 GMT; domain=21vek.by
+set-cookie: Settings[ft_split_group]=1385; path=/; expires=Fri, 06 Aug 2027 13:35:43 GMT; domain=21vek.by
+cache-control: no-cache
+location: /power_tool_spare_parts/brh262105048064_brait_10353855.html?searchId=0Z34CVQ44EDD39BBHDJ9T7GHG1
+refresh: 0;url=/power_tool_spare_parts/brh262105048064_brait_10353855.html?searchId=0Z34CVQ44EDD39BBHDJ9T7GHG1
+date: Thu, 06 Aug 2026 13:35:44 GMT
+x-envoy-upstream-service-time: 878
+vary: Origin
+access-control-allow-credentials: true
+x-kong-upstream-latency: 879
+x-kong-proxy-latency: 1
+via: kong/3.7.1
+x-kong-request-id: b41ac23b1cb94e4216616a7136fd9775
+set-cookie: accessToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxZjlmZjg2Zi1iNzk4LTRlODItOWQ4Mi1mNDAyOTNlMDhkZWQiLCJhbm8iOjEsInZlciI6MC4xLCJpYXQiOjE3ODYwMjMzNDMsImV4cCI6MTgxNzU3MDE0M30.unEFDcDPC2eqMkOpbFegQUG8DL6kT0XAWdlad6-_CWk; Expires=Fri, 06 Aug 2027 19:35:44 GMT; Domain=21vek.by; Path=/; Secure; HttpOnly; SameSite=None
+set-cookie: refreshToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJqdGkiOiIxZjlmZjg2Zi1iNzk4LTRlODItOWQ4Mi1mNDAyOTNlMDhkZWQiLCJpYXQiOjE3ODYwMjMzNDMsImFubyI6MSwidmVyIjowLjEsImV4cCI6MTgxNzU3MDE0M30.3PWF9p7CdrRUE3euFtsNLkeQj0ofTguFnXci-PDa7WI; Expires=Fri, 06 Aug 2027 19:35:44 GMT; Domain=21vek.by; Path=/; Secure; HttpOnly; SameSite=None
+x-gate-user-id: 
+x-gate-user-uuid: 1f9ff86f-b798-4e82-9d82-f40293e08ded
+x-gate-user-has-premium-subscription: 0
+x-gate-user-role: personal
+strict-transport-security: max-age=31536000; includeSubDomains
+
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+set-cookie: Settings[ft_split_group]=1110; path=/; expires=Fri, 06 Aug 2027 13:35:44 GMT; domain=21vek.by
+set-cookie: Settings[ft_split_group]=1393; path=/; expires=Fri, 06 Aug 2027 13:35:44 GMT; domain=21vek.by
+set-cookie: Settings[ft_split_group]=1976; path=/; expires=Fri, 06 Aug 2027 13:35:44 GMT; domain=21vek.by
+set-cookie: Settings[u_source]=Q3FrZQ%3D%3D.BBIfFzcABhpBXwJGV0MfElkdUU0%3D; path=/; expires=Fri, 06 Aug 2027 13:35:44 GMT; domain=21vek.by; httponly
+set-cookie: Settings[ft_split_group]=1763; path=/; expires=Fri, 06 Aug 2027 13:35:44 GMT; domain=21vek.by
+set-cookie: Settings[userCity_]=Q3FrZQ%3D%3D.F0QCA2YAGAIGG0VERwYQB1cRCRYwE1tTdwkLGRRLHBwcLQATEAkCA1xVW0tmWUBBTwpPSjkHWUMBAB0UMBNbU3VZdUAGHEZQOQdZQwFXb0FcUl9WGE8ZAQVJV0RHAAwQW1xdaw0KAgY3GBMXFARXDAwBHRZcUFYWVlZHRTx5RlpETBwGBAYMVQgRBgdCXl9ecAkaFxoKDCsKHRsTW11SQAlEUUV2DQcBDh5EUVdQFA%3D%3D; path=/; expires=Tue, 08 Aug 2028 13:35:44 GMT; domain=21vek.by
+x-powered-by: Next.js
+cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+vary: Accept-Encoding
+content-encoding: gzip
+date: Thu, 06 Aug 2026 13:35:44 GMT
+x-envoy-upstream-service-time: 72
+vary: Origin
+access-control-allow-credentials: true
+x-kong-upstream-latency: 73
+x-kong-proxy-latency: 0
+via: kong/3.7.1
+x-kong-request-id: 9827c83ba1663d695f867a0974940921
+set-cookie: accessToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbm8iOjEsInN1YiI6IjFmNTI5YTg1LTRiZmUtNGJjYy04MDAwLTMzM2U4MDM0NWJmZSIsImV4cCI6MTgxNzU3MDE0NCwidmVyIjowLjEsImlhdCI6MTc4NjAyMzM0NH0.NUpPA_AKVNxuWJJGHBNotAkhP3uKFErcEWgGQQjL5vY; Expires=Fri, 06 Aug 2027 19:35:44 GMT; Domain=21vek.by; Path=/; Secure; HttpOnly; SameSite=None
+set-cookie: refreshToken=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJhbm8iOjEsImp0aSI6IjFmNTI5YTg1LTRiZmUtNGJjYy04MDAwLTMzM2U4MDM0NWJmZSIsImlhdCI6MTc4NjAyMzM0NCwiZXhwIjoxODE3NTcwMTQ0LCJ2ZXIiOjAuMX0.9OS7TEmF8IoMElf0kS6PvGUNSFrBali6vDqslKYEipg; Expires=Fri, 06 Aug 2027 19:35:44 GMT; Domain=21vek.by; Path=/; Secure; HttpOnly; SameSite=None
+x-gate-user-id: 
+x-gate-user-uuid: 1f529a85-4bfe-4bcc-8000-333e80345bfe
+x-gate-user-has-premium-subscription: 0
+x-gate-user-role: personal
+strict-transport-security: max-age=31536000; includeSubDomains
+
