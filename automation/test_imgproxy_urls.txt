@@ -1,1 +1,4 @@
-https://wsrv.nl/?url=https%3A%2F%2Fcdn21vek.by%2Fimgproxy%2Fpreview_b%2Fplain%2Fimg%2Fgalleries%2F10524%2F361%2F10524361_8551e9598fce135b058889b221dee9fb.jpg&w=900&h=1200&fit=cover&a=top&output=jpg
+https://wsrv.nl/?url=https%3A%2F%2Fcdn21vek.by%2Fimgproxy%2Fpreview_b%2Fplain%2Fimg%2Fgalleries%2F10524%2F361%2F10524361_8551e9598fce135b058889b221dee9fb.jpg&w=900&h=1200&fit=cover&a=left&output=jpg&q=90
+https://wsrv.nl/?url=https%3A%2F%2Fcdn21vek.by%2Fimgproxy%2Fpreview_b%2Fplain%2Fimg%2Fgalleries%2F10524%2F361%2F10524361_8551e9598fce135b058889b221dee9fb.jpg&w=900&h=1200&fit=cover&a=right&output=jpg&q=90
+https://wsrv.nl/?url=https%3A%2F%2Fcdn21vek.by%2Fimgproxy%2Fpreview_b%2Fplain%2Fimg%2Fgalleries%2F10524%2F361%2F10524361_cc4af1b49b53a99544b0a85b563abd49.jpg&w=900&h=1200&fit=cover&a=attention&output=jpg&q=90
+https://wsrv.nl/?url=https%3A%2F%2Fcdn21vek.by%2Fimgproxy%2Fpreview_b%2Fplain%2Fimg%2Fgalleries%2F10547%2F354%2F10547354_e0595008403f6c49411fccb676913932.webp&w=900&h=1200&fit=cover&a=attention&output=jpg&q=90
