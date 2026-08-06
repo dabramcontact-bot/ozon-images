@@ -1,0 +1,34 @@
+name: Fetch 21vek rotor pages
+
+on:
+  push:
+    paths:
+      - .github/workflows/fetch-21vek-rotors.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pages
+        shell: bash
+        run: |
+          mkdir -p automation/21vek_rotors
+          : > automation/21vek_rotors/sizes.txt
+          for a in 10353858 10353855 10353862; do
+            url="https://www.21vek.by/search/?term=$a"
+            curl -L --compressed -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36' -sS -D "automation/21vek_rotors/${a}.headers" "$url" -o "automation/21vek_rotors/${a}.html" || true
+            wc -c "automation/21vek_rotors/${a}.html" >> automation/21vek_rotors/sizes.txt
+          done
+      - name: Commit pages
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add automation/21vek_rotors
+          git commit -m 'Fetch 21vek rotor search pages' || exit 0
+          git push
