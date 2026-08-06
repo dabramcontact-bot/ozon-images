@@ -1,0 +1,40 @@
+name: Test imgproxy URLs 20260806
+
+on:
+  push:
+    paths:
+      - automation/test_imgproxy_urls.txt
+      - .github/workflows/test-imgproxy-20260806.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test URLs
+        shell: bash
+        run: |
+          set -u
+          : > automation/test_imgproxy_results.txt
+          i=0
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            i=$((i+1))
+            tmp="/tmp/imgproxy_${i}"
+            meta=$(curl -L --max-time 45 -sS -o "$tmp" -w '%{http_code}|%{content_type}|%{size_download}' "$url" || true)
+            mime=$(file -b --mime-type "$tmp" 2>/dev/null || true)
+            printf '%s|%s|%s\n' "$meta" "$mime" "$url" >> automation/test_imgproxy_results.txt
+          done < automation/test_imgproxy_urls.txt
+          cat automation/test_imgproxy_results.txt
+      - name: Commit results
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add automation/test_imgproxy_results.txt
+          git commit -m 'Record imgproxy URL test results' || exit 0
+          git push
