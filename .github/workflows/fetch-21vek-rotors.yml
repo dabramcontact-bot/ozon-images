@@ -12,6 +12,7 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Fetch pages
@@ -21,7 +22,8 @@ jobs:
           : > automation/21vek_rotors/sizes.txt
           for a in 10353858 10353855 10353862; do
             url="https://www.21vek.by/search/?term=$a"
-            curl -L --compressed -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36' -sS -D "automation/21vek_rotors/${a}.headers" "$url" -o "automation/21vek_rotors/${a}.html" || true
+            curl -L --max-time 30 --connect-timeout 10 --compressed -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36' -sS -D "automation/21vek_rotors/${a}.headers" "$url" -o "automation/21vek_rotors/${a}.html" || true
+            test -f "automation/21vek_rotors/${a}.html" || : > "automation/21vek_rotors/${a}.html"
             wc -c "automation/21vek_rotors/${a}.html" >> automation/21vek_rotors/sizes.txt
           done
       - name: Commit pages
