@@ -1,0 +1,95 @@
+name: Fetch 21vek kitchen 10417587
+
+on:
+  push:
+    paths:
+      - .github/workflows/fetch-21vek-kitchen-10417587.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch product and make 3x4 images
+        shell: bash
+        run: |
+          set -e
+          out='products/10417587'
+          mkdir -p "$out/original" "$out/3x4"
+          curl -L --max-time 45 --connect-timeout 10 --compressed \
+            -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36' \
+            -sS 'https://www.21vek.by/search/?term=10417587' -o "$out/page.html"
+          python3 - <<'PY'
+          import json,re,html,pathlib
+          p=pathlib.Path('products/10417587/page.html')
+          s=p.read_text('utf-8',errors='ignore')
+          objs=[]
+          for m in re.finditer(r'<script[^>]+type="application/ld\+json"[^>]*>(.*?)</script>',s,re.S|re.I):
+              raw=html.unescape(m.group(1))
+              try: objs.append(json.loads(raw))
+              except: pass
+          prod=None
+          def walk(x):
+              global prod
+              if isinstance(x,dict):
+                  if x.get('@type')=='Product' and str(x.get('sku',''))=='10417587': prod=x
+                  for v in x.values(): walk(v)
+              elif isinstance(x,list):
+                  for v in x: walk(v)
+          for o in objs: walk(o)
+          if not prod:
+              raise SystemExit('Product JSON-LD not found')
+          pathlib.Path('products/10417587/product.json').write_text(json.dumps(prod,ensure_ascii=False,indent=2),'utf-8')
+          imgs=prod.get('image') or []
+          if isinstance(imgs,str): imgs=[imgs]
+          pathlib.Path('products/10417587/images.txt').write_text('\n'.join(imgs),'utf-8')
+          print(json.dumps(prod,ensure_ascii=False,indent=2))
+          PY
+          i=0
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            i=$((i+1))
+            curl -L --max-time 45 --connect-timeout 10 -sS "$url" -o "$out/original/$i.img" || true
+          done < "$out/images.txt"
+          command -v ffmpeg >/dev/null
+          count=$(wc -l < "$out/images.txt" | tr -d ' ')
+          [ "$count" -ge 1 ]
+          # First: all unique source photos, padded on white canvas to 3:4.
+          n=0
+          for f in "$out"/original/*.img; do
+            [ -s "$f" ] || continue
+            n=$((n+1))
+            ffmpeg -loglevel error -y -i "$f" -vf "scale=900:1200:force_original_aspect_ratio=decrease,pad=900:1200:(ow-iw)/2:(oh-ih)/2:color=white" -frames:v 1 -q:v 2 "$out/3x4/${n}.jpg"
+            [ "$n" -ge 8 ] && break
+          done
+          # If fewer than 8 originals: create useful close-ups from exact same item photos.
+          anchors='center left right top bottom'
+          idx=1
+          while [ "$n" -lt 8 ]; do
+            src="$out/original/$idx.img"
+            [ -s "$src" ] || { idx=1; src="$out/original/1.img"; }
+            a=$(echo "$anchors" | cut -d' ' -f$(( (n-1)%5 + 1 )))
+            case "$a" in
+              left)   crop='crop=iw*0.72:ih:0:0' ;;
+              right)  crop='crop=iw*0.72:ih:iw*0.28:0' ;;
+              top)    crop='crop=iw:ih*0.72:0:0' ;;
+              bottom) crop='crop=iw:ih*0.72:0:ih*0.28' ;;
+              *)      crop='crop=iw*0.78:ih*0.78:iw*0.11:ih*0.11' ;;
+            esac
+            n=$((n+1))
+            ffmpeg -loglevel error -y -i "$src" -vf "$crop,scale=900:1200:force_original_aspect_ratio=decrease,pad=900:1200:(ow-iw)/2:(oh-ih)/2:color=white" -frames:v 1 -q:v 2 "$out/3x4/${n}.jpg"
+            idx=$((idx+1))
+          done
+      - name: Commit fetched data
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add products/10417587
+          git commit -m 'Add 10417587 kitchen product data and 3x4 images' || exit 0
+          git push
