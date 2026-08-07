@@ -1,4 +1,4 @@
-name: Fetch 21vek kitchen 10417587
+name: Build 10417587 kitchen images
 
 on:
   push:
@@ -10,12 +10,12 @@ permissions:
   contents: write
 
 jobs:
-  fetch:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch product and make 3x4 images
+      - name: Fetch exact 889-232 photos and make 3x4
         shell: bash
         run: |
           set -e
@@ -23,94 +23,55 @@ jobs:
           rm -rf "$out"
           mkdir -p "$out/original" "$out/3x4"
           ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36'
-          curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS \
-            'https://www.21vek.by/search/?term=10417587' -o "$out/search.html"
+          url='https://prom.ua/m4421588255688292765-kuhnya-detskaya-889.html'
+          curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS "$url" -o "$out/page.html"
           python3 - <<'PY'
-          import re,pathlib,html
-          s=pathlib.Path('products/10417587/search.html').read_text('utf-8',errors='ignore')
+          import re,html,pathlib,json
+          s=pathlib.Path('products/10417587/page.html').read_text('utf-8',errors='ignore')
+          pats=[
+            r'https?:\\?/\\?/images\.prom\.ua/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)',
+            r'https?://images\.prom\.ua/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)',
+          ]
           urls=[]
-          for m in re.finditer(r'href=["\']([^"\']*10417587[^"\']*\.html[^"\']*)["\']',s,re.I):
-              u=html.unescape(m.group(1))
-              if u.startswith('/'): u='https://www.21vek.by'+u
-              if u.startswith('http') and u not in urls: urls.append(u)
-          if not urls:
-              # Also look for canonical-like absolute product URLs containing model/article fragments.
-              for m in re.finditer(r'https://www\.21vek\.by/[^"\'<> ]*(?:jn[-_]?889[-_]?232|10417587)[^"\'<> ]*',s,re.I):
-                  u=html.unescape(m.group(0)).replace('\\/','/')
+          for pat in pats:
+              for u in re.findall(pat,s,re.I):
+                  u=html.unescape(u).replace('\\/','/')
+                  u=u.split('?')[0]
                   if u not in urls: urls.append(u)
-          pathlib.Path('products/10417587/product_url.txt').write_text((urls[0] if urls else ''),'utf-8')
-          print('FOUND URLS:', urls[:10])
-          PY
-          product_url=$(cat "$out/product_url.txt")
-          if [ -z "$product_url" ]; then
-            curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS \
-              'https://www.21vek.by/search/?term=JN-889-232' -o "$out/search_model.html"
-            python3 - <<'PY'
-          import re,pathlib,html
-          s=pathlib.Path('products/10417587/search_model.html').read_text('utf-8',errors='ignore')
-          urls=[]
-          for m in re.finditer(r'href=["\']([^"\']*(?:10417587|jn[-_]?889[-_]?232)[^"\']*\.html[^"\']*)["\']',s,re.I):
-              u=html.unescape(m.group(1))
-              if u.startswith('/'): u='https://www.21vek.by'+u
-              if u.startswith('http') and u not in urls: urls.append(u)
-          pathlib.Path('products/10417587/product_url.txt').write_text((urls[0] if urls else ''),'utf-8')
-          print('MODEL URLS:', urls[:10])
-          PY
-            product_url=$(cat "$out/product_url.txt")
-          fi
-          [ -n "$product_url" ] || { echo 'Product URL not found'; exit 2; }
-          echo "$product_url"
-          curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS "$product_url" -o "$out/page.html"
-          python3 - <<'PY'
-          import json,re,html,pathlib
-          p=pathlib.Path('products/10417587/page.html')
-          s=p.read_text('utf-8',errors='ignore')
-          objs=[]
-          for m in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',s,re.S|re.I):
-              raw=html.unescape(m.group(1))
-              try: objs.append(json.loads(raw))
-              except Exception as e: pass
-          prod=None
-          def walk(x):
-              global prod
-              if isinstance(x,dict):
-                  if x.get('@type')=='Product' and (str(x.get('sku',''))=='10417587' or 'JN-889-232' in str(x.get('model',''))): prod=x
-                  for v in x.values(): walk(v)
-              elif isinstance(x,list):
-                  for v in x: walk(v)
-          for o in objs: walk(o)
-          if not prod:
-              raise SystemExit('Product JSON-LD not found on product page')
-          pathlib.Path('products/10417587/product.json').write_text(json.dumps(prod,ensure_ascii=False,indent=2),'utf-8')
-          imgs=prod.get('image') or []
-          if isinstance(imgs,str): imgs=[imgs]
-          # de-duplicate, preserve order
-          seen=[]
-          for u in imgs:
-              if u and u not in seen: seen.append(u)
-          pathlib.Path('products/10417587/images.txt').write_text('\n'.join(seen)+'\n','utf-8')
-          print(json.dumps(prod,ensure_ascii=False,indent=2))
+          # Prefer larger/original product media and remove obvious logos/icons.
+          good=[]
+          for u in urls:
+              low=u.lower()
+              if any(x in low for x in ['logo','icon','avatar','payment','delivery']): continue
+              good.append(u)
+          pathlib.Path('products/10417587/images_source.txt').write_text('\n'.join(good[:30])+'\n','utf-8')
+          pathlib.Path('products/10417587/source.json').write_text(json.dumps({'page': 'https://prom.ua/m4421588255688292765-kuhnya-detskaya-889.html','model':'889-232','urls':good[:30]},ensure_ascii=False,indent=2),'utf-8')
+          print('\n'.join(good[:20]))
           PY
           i=0
-          while IFS= read -r url; do
-            [ -n "$url" ] || continue
+          while IFS= read -r img; do
+            [ -n "$img" ] || continue
             i=$((i+1))
-            curl -L --max-time 45 --connect-timeout 10 -sS "$url" -o "$out/original/$i.img" || true
-          done < "$out/images.txt"
+            curl -L --max-time 30 --connect-timeout 10 -sS -A "$ua" "$img" -o "$out/original/$i.img" || true
+            [ "$i" -ge 20 ] && break
+          done < "$out/images_source.txt"
           command -v ffmpeg >/dev/null
           n=0
           for f in "$out"/original/*.img; do
             [ -s "$f" ] || continue
-            n=$((n+1))
-            ffmpeg -loglevel error -y -i "$f" -vf "scale=900:1200:force_original_aspect_ratio=decrease,pad=900:1200:(ow-iw)/2:(oh-ih)/2:color=white" -frames:v 1 -q:v 2 "$out/3x4/${n}.jpg"
-            [ "$n" -ge 8 ] && break
+            if ffprobe -v error -show_entries stream=width,height -of csv=p=0 "$f" >/dev/null 2>&1; then
+              n=$((n+1))
+              ffmpeg -loglevel error -y -i "$f" -vf "scale=900:1200:force_original_aspect_ratio=decrease,pad=900:1200:(ow-iw)/2:(oh-ih)/2:color=white" -frames:v 1 -q:v 2 "$out/3x4/${n}.jpg"
+              [ "$n" -ge 8 ] && break
+            fi
           done
-          [ "$n" -ge 1 ] || { echo 'No usable images'; exit 3; }
+          [ "$n" -ge 1 ] || { echo 'No usable Prom images'; exit 3; }
+          # If exact page offers fewer than 8 photos, create distinct detail crops from same exact model.
           idx=1
           while [ "$n" -lt 8 ]; do
             src="$out/original/$idx.img"
             [ -s "$src" ] || { idx=1; src="$out/original/1.img"; }
-            case $(( (n-1)%5 )) in
+            case $((n%5)) in
               0) crop='crop=iw*0.80:ih*0.80:iw*0.10:ih*0.10' ;;
               1) crop='crop=iw*0.72:ih:0:0' ;;
               2) crop='crop=iw*0.72:ih:iw*0.28:0' ;;
@@ -121,11 +82,11 @@ jobs:
             ffmpeg -loglevel error -y -i "$src" -vf "$crop,scale=900:1200:force_original_aspect_ratio=decrease,pad=900:1200:(ow-iw)/2:(oh-ih)/2:color=white" -frames:v 1 -q:v 2 "$out/3x4/${n}.jpg"
             idx=$((idx+1))
           done
-      - name: Commit fetched data
+      - name: Commit images
         shell: bash
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add products/10417587
-          git commit -m 'Add 10417587 kitchen product data and 3x4 images' || exit 0
+          git commit -m 'Add exact 889-232 Ozon 3x4 images' || exit 0
           git push
