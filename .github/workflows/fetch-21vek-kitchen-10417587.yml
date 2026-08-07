@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch exact 889-232 photos and make 3x4
+      - name: Fetch exact 889-232 72-piece photos and make 3x4
         shell: bash
         run: |
           set -e
@@ -23,7 +23,7 @@ jobs:
           rm -rf "$out"
           mkdir -p "$out/original" "$out/3x4"
           ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36'
-          url='https://prom.ua/m4421588255688292765-kuhnya-detskaya-889.html'
+          url='https://prom.ua/m-7298480682529741775-kuhnya-vodoj-parom.html'
           curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS "$url" -o "$out/page.html"
           python3 - <<'PY'
           import re,html,pathlib,json
@@ -35,17 +35,16 @@ jobs:
           urls=[]
           for pat in pats:
               for u in re.findall(pat,s,re.I):
-                  u=html.unescape(u).replace('\\/','/')
-                  u=u.split('?')[0]
+                  u=html.unescape(u).replace('\\/','/').split('?')[0]
                   if u not in urls: urls.append(u)
-          # Prefer larger/original product media and remove obvious logos/icons.
           good=[]
           for u in urls:
               low=u.lower()
               if any(x in low for x in ['logo','icon','avatar','payment','delivery']): continue
               good.append(u)
+          page='https://prom.ua/m-7298480682529741775-kuhnya-vodoj-parom.html'
           pathlib.Path('products/10417587/images_source.txt').write_text('\n'.join(good[:30])+'\n','utf-8')
-          pathlib.Path('products/10417587/source.json').write_text(json.dumps({'page': 'https://prom.ua/m4421588255688292765-kuhnya-detskaya-889.html','model':'889-232','urls':good[:30]},ensure_ascii=False,indent=2),'utf-8')
+          pathlib.Path('products/10417587/source.json').write_text(json.dumps({'page':page,'model':'889-232','set':'72 items','urls':good[:30]},ensure_ascii=False,indent=2),'utf-8')
           print('\n'.join(good[:20]))
           PY
           i=0
@@ -65,8 +64,7 @@ jobs:
               [ "$n" -ge 8 ] && break
             fi
           done
-          [ "$n" -ge 1 ] || { echo 'No usable Prom images'; exit 3; }
-          # If exact page offers fewer than 8 photos, create distinct detail crops from same exact model.
+          [ "$n" -ge 1 ] || { echo 'No usable exact-model images'; exit 3; }
           idx=1
           while [ "$n" -lt 8 ]; do
             src="$out/original/$idx.img"
@@ -88,5 +86,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add products/10417587
-          git commit -m 'Add exact 889-232 Ozon 3x4 images' || exit 0
+          git commit -m 'Add exact 889-232 72-piece Ozon 3x4 images' || exit 0
           git push
