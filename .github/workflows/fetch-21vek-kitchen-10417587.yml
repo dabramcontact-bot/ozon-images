@@ -12,7 +12,7 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - name: Fetch product and make 3x4 images
@@ -20,34 +20,75 @@ jobs:
         run: |
           set -e
           out='products/10417587'
+          rm -rf "$out"
           mkdir -p "$out/original" "$out/3x4"
-          curl -L --max-time 45 --connect-timeout 10 --compressed \
-            -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36' \
-            -sS 'https://www.21vek.by/search/?term=10417587' -o "$out/page.html"
+          ua='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36'
+          curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS \
+            'https://www.21vek.by/search/?term=10417587' -o "$out/search.html"
+          python3 - <<'PY'
+          import re,pathlib,html
+          s=pathlib.Path('products/10417587/search.html').read_text('utf-8',errors='ignore')
+          urls=[]
+          for m in re.finditer(r'href=["\']([^"\']*10417587[^"\']*\.html[^"\']*)["\']',s,re.I):
+              u=html.unescape(m.group(1))
+              if u.startswith('/'): u='https://www.21vek.by'+u
+              if u.startswith('http') and u not in urls: urls.append(u)
+          if not urls:
+              # Also look for canonical-like absolute product URLs containing model/article fragments.
+              for m in re.finditer(r'https://www\.21vek\.by/[^"\'<> ]*(?:jn[-_]?889[-_]?232|10417587)[^"\'<> ]*',s,re.I):
+                  u=html.unescape(m.group(0)).replace('\\/','/')
+                  if u not in urls: urls.append(u)
+          pathlib.Path('products/10417587/product_url.txt').write_text((urls[0] if urls else ''),'utf-8')
+          print('FOUND URLS:', urls[:10])
+          PY
+          product_url=$(cat "$out/product_url.txt")
+          if [ -z "$product_url" ]; then
+            curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS \
+              'https://www.21vek.by/search/?term=JN-889-232' -o "$out/search_model.html"
+            python3 - <<'PY'
+          import re,pathlib,html
+          s=pathlib.Path('products/10417587/search_model.html').read_text('utf-8',errors='ignore')
+          urls=[]
+          for m in re.finditer(r'href=["\']([^"\']*(?:10417587|jn[-_]?889[-_]?232)[^"\']*\.html[^"\']*)["\']',s,re.I):
+              u=html.unescape(m.group(1))
+              if u.startswith('/'): u='https://www.21vek.by'+u
+              if u.startswith('http') and u not in urls: urls.append(u)
+          pathlib.Path('products/10417587/product_url.txt').write_text((urls[0] if urls else ''),'utf-8')
+          print('MODEL URLS:', urls[:10])
+          PY
+            product_url=$(cat "$out/product_url.txt")
+          fi
+          [ -n "$product_url" ] || { echo 'Product URL not found'; exit 2; }
+          echo "$product_url"
+          curl -L --max-time 45 --connect-timeout 10 --compressed -A "$ua" -sS "$product_url" -o "$out/page.html"
           python3 - <<'PY'
           import json,re,html,pathlib
           p=pathlib.Path('products/10417587/page.html')
           s=p.read_text('utf-8',errors='ignore')
           objs=[]
-          for m in re.finditer(r'<script[^>]+type="application/ld\+json"[^>]*>(.*?)</script>',s,re.S|re.I):
+          for m in re.finditer(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',s,re.S|re.I):
               raw=html.unescape(m.group(1))
               try: objs.append(json.loads(raw))
-              except: pass
+              except Exception as e: pass
           prod=None
           def walk(x):
               global prod
               if isinstance(x,dict):
-                  if x.get('@type')=='Product' and str(x.get('sku',''))=='10417587': prod=x
+                  if x.get('@type')=='Product' and (str(x.get('sku',''))=='10417587' or 'JN-889-232' in str(x.get('model',''))): prod=x
                   for v in x.values(): walk(v)
               elif isinstance(x,list):
                   for v in x: walk(v)
           for o in objs: walk(o)
           if not prod:
-              raise SystemExit('Product JSON-LD not found')
+              raise SystemExit('Product JSON-LD not found on product page')
           pathlib.Path('products/10417587/product.json').write_text(json.dumps(prod,ensure_ascii=False,indent=2),'utf-8')
           imgs=prod.get('image') or []
           if isinstance(imgs,str): imgs=[imgs]
-          pathlib.Path('products/10417587/images.txt').write_text('\n'.join(imgs),'utf-8')
+          # de-duplicate, preserve order
+          seen=[]
+          for u in imgs:
+              if u and u not in seen: seen.append(u)
+          pathlib.Path('products/10417587/images.txt').write_text('\n'.join(seen)+'\n','utf-8')
           print(json.dumps(prod,ensure_ascii=False,indent=2))
           PY
           i=0
@@ -57,9 +98,6 @@ jobs:
             curl -L --max-time 45 --connect-timeout 10 -sS "$url" -o "$out/original/$i.img" || true
           done < "$out/images.txt"
           command -v ffmpeg >/dev/null
-          count=$(wc -l < "$out/images.txt" | tr -d ' ')
-          [ "$count" -ge 1 ]
-          # First: all unique source photos, padded on white canvas to 3:4.
           n=0
           for f in "$out"/original/*.img; do
             [ -s "$f" ] || continue
@@ -67,19 +105,17 @@ jobs:
             ffmpeg -loglevel error -y -i "$f" -vf "scale=900:1200:force_original_aspect_ratio=decrease,pad=900:1200:(ow-iw)/2:(oh-ih)/2:color=white" -frames:v 1 -q:v 2 "$out/3x4/${n}.jpg"
             [ "$n" -ge 8 ] && break
           done
-          # If fewer than 8 originals: create useful close-ups from exact same item photos.
-          anchors='center left right top bottom'
+          [ "$n" -ge 1 ] || { echo 'No usable images'; exit 3; }
           idx=1
           while [ "$n" -lt 8 ]; do
             src="$out/original/$idx.img"
             [ -s "$src" ] || { idx=1; src="$out/original/1.img"; }
-            a=$(echo "$anchors" | cut -d' ' -f$(( (n-1)%5 + 1 )))
-            case "$a" in
-              left)   crop='crop=iw*0.72:ih:0:0' ;;
-              right)  crop='crop=iw*0.72:ih:iw*0.28:0' ;;
-              top)    crop='crop=iw:ih*0.72:0:0' ;;
-              bottom) crop='crop=iw:ih*0.72:0:ih*0.28' ;;
-              *)      crop='crop=iw*0.78:ih*0.78:iw*0.11:ih*0.11' ;;
+            case $(( (n-1)%5 )) in
+              0) crop='crop=iw*0.80:ih*0.80:iw*0.10:ih*0.10' ;;
+              1) crop='crop=iw*0.72:ih:0:0' ;;
+              2) crop='crop=iw*0.72:ih:iw*0.28:0' ;;
+              3) crop='crop=iw:ih*0.72:0:0' ;;
+              *) crop='crop=iw:ih*0.72:0:ih*0.28' ;;
             esac
             n=$((n+1))
             ffmpeg -loglevel error -y -i "$src" -vf "$crop,scale=900:1200:force_original_aspect_ratio=decrease,pad=900:1200:(ow-iw)/2:(oh-ih)/2:color=white" -frames:v 1 -q:v 2 "$out/3x4/${n}.jpg"
