@@ -1,0 +1,147 @@
+name: Fetch exact Ozon parts 20260810
+
+on:
+  push:
+    paths:
+      - .github/workflows/fetch-ozon-parts-20260810.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install parser
+        run: python3 -m pip install -q requests beautifulsoup4 pillow
+      - name: Fetch exact 21vek products and build 3x4 photos
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import io, json, re, html as htmllib
+          from pathlib import Path
+          from urllib.parse import urljoin, quote
+          import requests
+          from bs4 import BeautifulSoup
+          from PIL import Image
+
+          products = {
+            '10432502':'90167452603',
+            '10249466':'KM',
+            '10547394':'773521403500',
+            '10249465':'FPS-18',
+            '10252506':'768563100700',
+            '10252502':'772318100701',
+            '10233486':'90167452601',
+            '10531230':'65180206',
+            '9857156':'28.02.037.074',
+            '10418655':'MyWay Let 1.0 250',
+            '10433199':'MyWay Truck 350',
+          }
+          s=requests.Session()
+          s.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/149 Safari/537.36','Accept-Language':'ru-RU,ru;q=0.9'})
+
+          def get(url):
+            r=s.get(url,timeout=30,allow_redirects=True)
+            r.raise_for_status(); return r
+
+          def match_page(text, sku, expected):
+            low=text.lower()
+            return sku.lower() in low and (expected.lower() in low or sku.lower() in low)
+
+          def find_page(sku, expected):
+            r=get('https://www.21vek.by/search/?term='+quote(sku))
+            if r.url.endswith('.html') and match_page(r.text,sku,expected): return r.url,r.text
+            soup=BeautifulSoup(r.text,'html.parser')
+            urls=[]
+            for a in soup.find_all('a',href=True):
+              u=urljoin(r.url,a['href'])
+              if '21vek.by' in u and u.split('?')[0].endswith('.html') and u not in urls: urls.append(u)
+            for u in urls[:12]:
+              try:
+                rr=get(u)
+                if match_page(rr.text,sku,expected): return rr.url,rr.text
+              except Exception: pass
+            raise RuntimeError('exact 21vek page not found')
+
+          def images_from_page(text, base):
+            soup=BeautifulSoup(text,'html.parser'); urls=[]
+            for sc in soup.find_all('script',type='application/ld+json'):
+              try: data=json.loads(sc.string or '')
+              except Exception: continue
+              stack=data if isinstance(data,list) else [data]
+              while stack:
+                x=stack.pop()
+                if isinstance(x,list): stack.extend(x); continue
+                if not isinstance(x,dict): continue
+                if '@graph' in x: stack.append(x['@graph'])
+                if x.get('@type')=='Product':
+                  ims=x.get('image') or []
+                  if isinstance(ims,str): ims=[ims]
+                  for u in ims:
+                    u=urljoin(base,str(u))
+                    if u not in urls: urls.append(u)
+            pats=[r'https?:\\?/\\?/cdn21vek\.by/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)',r'https?://cdn21vek\.by/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)']
+            for pat in pats:
+              for u in re.findall(pat,text,re.I):
+                u=htmllib.unescape(u).replace('\\/','/').split('?')[0]
+                if u not in urls: urls.append(u)
+            return urls
+
+          def pad34(im, zoom=1.0, ox=0.5, oy=0.5):
+            im=im.convert('RGB')
+            if zoom>1:
+              w,h=im.size; nw=max(1,int(w/zoom)); nh=max(1,int(h/zoom))
+              left=max(0,min(w-nw,int((w-nw)*ox))); top=max(0,min(h-nh,int((h-nh)*oy)))
+              im=im.crop((left,top,left+nw,top+nh))
+            im.thumbnail((860,1160),Image.Resampling.LANCZOS)
+            canvas=Image.new('RGB',(900,1200),'white')
+            canvas.paste(im,((900-im.width)//2,(1200-im.height)//2))
+            return canvas
+
+          variants=[(1.00,.5,.5),(1.10,.5,.5),(1.18,.5,.5),(1.25,.5,.5),(1.15,.25,.5),(1.15,.75,.5),(1.15,.5,.25),(1.15,.5,.75)]
+          report={}
+          for sku,expected in products.items():
+            out=Path('products')/sku; d=out/'3x4'; d.mkdir(parents=True,exist_ok=True)
+            for old in d.glob('*.jpg'): old.unlink()
+            try:
+              page,text=find_page(sku,expected)
+              urls=images_from_page(text,page)
+              originals=[]
+              for u in urls[:20]:
+                try:
+                  rr=get(u); im=Image.open(io.BytesIO(rr.content)); im.load()
+                  if im.width<80 or im.height<80: continue
+                  originals.append((u,im.copy()))
+                except Exception: pass
+              if not originals: raise RuntimeError('no usable exact images')
+              built=[]
+              # First use each exact source once, then safe crops of exact sources.
+              for u,im in originals[:8]:
+                built.append((u,pad34(im)))
+              vi=1
+              while len(built)<8:
+                u,im=originals[(len(built)-len(originals))%len(originals)]
+                zoom,ox,oy=variants[vi%len(variants)]; vi+=1
+                built.append((u,pad34(im,zoom,ox,oy)))
+              for i,(u,im) in enumerate(built[:8],1):
+                im.save(d/f'{i}.jpg','JPEG',quality=92,optimize=True)
+              (out/'source.json').write_text(json.dumps({'sku':sku,'expected':expected,'page':page,'source_images':[u for u,_ in originals],'built_from':[u for u,_ in built[:8]]},ensure_ascii=False,indent=2),'utf-8')
+              report[sku]={'ok':True,'page':page,'originals':len(originals)}
+            except Exception as e:
+              report[sku]={'ok':False,'error':str(e)}
+          Path('automation').mkdir(exist_ok=True)
+          Path('automation/ozon_parts_20260810.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),'utf-8')
+          print(json.dumps(report,ensure_ascii=False,indent=2))
+          PY
+      - name: Commit photos
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add products automation/ozon_parts_20260810.json
+          git commit -m 'Add exact Ozon parts 3x4 photos 20260810' || exit 0
+          git push
