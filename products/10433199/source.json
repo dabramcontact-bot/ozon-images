@@ -1,0 +1,30 @@
+{
+  "sku": "10433199",
+  "expected": "MyWay Truck 350",
+  "page": "https://www.21vek.by/info/brands/myway.html",
+  "source_images": [
+    "https://cdn21vek.by/desktop/_next/static/images/qr-code.593cea8a.png",
+    "https://cdn21vek.by/installment_cards/main/magnit.png",
+    "https://cdn21vek.by/installment_cards/main/magnit@2x.png",
+    "https://cdn21vek.by/installment_cards/main/magnit@3x.png",
+    "https://cdn21vek.by/installment_cards/preview/sb_magnit@3x.png",
+    "https://cdn21vek.by/installment_cards/main/cherepaha.png",
+    "https://cdn21vek.by/installment_cards/main/cherepaha@2x.png",
+    "https://cdn21vek.by/installment_cards/main/cherepaha@3x.png",
+    "https://cdn21vek.by/installment_cards/preview/sb_cherepaha@3x.png",
+    "https://cdn21vek.by/installment_cards/main/pokupki.png",
+    "https://cdn21vek.by/installment_cards/main/pokupki@2x.png",
+    "https://cdn21vek.by/installment_cards/main/pokupki@3x.png",
+    "https://cdn21vek.by/installment_cards/preview/sb_pokupki@3x.png"
+  ],
+  "built_from": [
+    "https://cdn21vek.by/desktop/_next/static/images/qr-code.593cea8a.png",
+    "https://cdn21vek.by/installment_cards/main/magnit.png",
+    "https://cdn21vek.by/installment_cards/main/magnit@2x.png",
+    "https://cdn21vek.by/installment_cards/main/magnit@3x.png",
+    "https://cdn21vek.by/installment_cards/preview/sb_magnit@3x.png",
+    "https://cdn21vek.by/installment_cards/main/cherepaha.png",
+    "https://cdn21vek.by/installment_cards/main/cherepaha@2x.png",
+    "https://cdn21vek.by/installment_cards/main/cherepaha@3x.png"
+  ]
+}
