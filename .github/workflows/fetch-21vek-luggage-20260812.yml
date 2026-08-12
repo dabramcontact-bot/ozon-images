@@ -1,4 +1,4 @@
-name: Fetch current 21vek luggage photos 20260812
+name: Fetch current 21vek luggage photo links 20260812
 
 on:
   push:
@@ -12,11 +12,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Install dependencies
-        run: python3 -m pip install -q requests beautifulsoup4 pillow
-      - name: Fetch exact current 21vek photos and publish 3x4 images
+      - name: Install parser
+        run: python3 -m pip install -q requests beautifulsoup4
+      - name: Fetch exact current 21vek photo links
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -24,11 +24,10 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import base64, concurrent.futures, io, json, os, re, html as htmllib
+          import base64, concurrent.futures, json, os, re, html as htmllib
           from urllib.parse import urljoin, quote
           import requests
           from bs4 import BeautifulSoup
-          from PIL import Image
 
           skus = [
             '10474023','10473862','10473940','10474196','10473963','10474226',
@@ -38,36 +37,23 @@ jobs:
             '10473908','10473967','10474059','10474210','10473916','10473902'
           ]
 
-          repo = os.environ['REPOSITORY']
-          branch = os.environ.get('BRANCH') or 'main'
-          token = os.environ['GH_TOKEN']
-          gh = requests.Session()
-          gh.headers.update({
-            'Authorization': f'Bearer {token}',
-            'Accept': 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'User-Agent': '21vek-luggage-photo-builder'
-          })
-
-          def session21():
-            s = requests.Session()
+          def make_session():
+            s=requests.Session()
             s.headers.update({
               'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36',
               'Accept-Language':'ru-RU,ru;q=0.9,en;q=0.8'
             })
             return s
 
-          def get(s, url):
-            r=s.get(url,timeout=35,allow_redirects=True)
+          def get(s,url):
+            r=s.get(url,timeout=30,allow_redirects=True)
             r.raise_for_status(); return r
 
           def find_page(sku):
-            s=session21()
-            r=get(s,'https://www.21vek.by/search/?term='+quote(sku))
+            s=make_session(); r=get(s,'https://www.21vek.by/search/?term='+quote(sku))
             if r.url.split('?')[0].endswith('.html') and sku in r.text:
-              return r.url,r.text,s
-            soup=BeautifulSoup(r.text,'html.parser')
-            urls=[]
+              return r.url,r.text
+            soup=BeautifulSoup(r.text,'html.parser'); urls=[]
             for a in soup.find_all('a',href=True):
               u=urljoin(r.url,a['href']).split('#')[0]
               if '21vek.by' in u and u.split('?')[0].endswith('.html') and u not in urls:
@@ -75,13 +61,11 @@ jobs:
             for u in urls[:20]:
               try:
                 rr=get(s,u)
-                if sku in rr.text:
-                  return rr.url,rr.text,s
-              except Exception:
-                pass
+                if sku in rr.text: return rr.url,rr.text
+              except Exception: pass
             raise RuntimeError('exact 21vek page not found')
 
-          def product_images(text, base):
+          def images(text,base):
             soup=BeautifulSoup(text,'html.parser'); urls=[]
             for sc in soup.find_all('script',type='application/ld+json'):
               try: data=json.loads(sc.string or '')
@@ -97,12 +81,10 @@ jobs:
                   ims=x.get('image') or []
                   if isinstance(ims,(str,dict)): ims=[ims]
                   for im in ims:
-                    if isinstance(im,dict):
-                      im=im.get('url') or im.get('contentUrl')
-                    if not im: continue
-                    u=urljoin(base,str(im)).replace('\\/','/').split('?')[0]
-                    if u not in urls: urls.append(u)
-            # fallback/current gallery CDN URLs in page HTML
+                    if isinstance(im,dict): im=im.get('url') or im.get('contentUrl')
+                    if im:
+                      u=urljoin(base,str(im)).replace('\\/','/').split('?')[0]
+                      if u not in urls: urls.append(u)
             for pat in [
               r'https?:\\?/\\?/cdn21vek\.by/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)',
               r'https?://cdn21vek\.by/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)'
@@ -112,94 +94,35 @@ jobs:
                 if u not in urls: urls.append(u)
             return urls
 
-          def white_34(im, zoom=1.0, ox=.5, oy=.5):
-            if im.mode in ('RGBA','LA') or (im.mode=='P' and 'transparency' in im.info):
-              rgba=im.convert('RGBA'); bg=Image.new('RGBA',rgba.size,'white'); bg.alpha_composite(rgba); im=bg.convert('RGB')
-            else:
-              im=im.convert('RGB')
-            if zoom>1:
-              w,h=im.size; nw=max(1,int(w/zoom)); nh=max(1,int(h/zoom))
-              left=max(0,min(w-nw,int((w-nw)*ox))); top=max(0,min(h-nh,int((h-nh)*oy)))
-              im=im.crop((left,top,left+nw,top+nh))
-            im.thumbnail((840,1140),Image.Resampling.LANCZOS)
-            canvas=Image.new('RGB',(900,1200),'white')
-            canvas.paste(im,((900-im.width)//2,(1200-im.height)//2))
-            out=io.BytesIO(); canvas.save(out,'JPEG',quality=91,optimize=True)
-            return out.getvalue()
+          def work(sku):
+            try:
+              page,text=find_page(sku); ims=images(text,page)
+              if not ims: raise RuntimeError('no product images found')
+              return sku,{'ok':True,'page':page,'images':ims[:14],'image_count':len(ims)}
+            except Exception as e:
+              return sku,{'ok':False,'error':str(e)}
 
-          variants=[(1.10,.5,.5),(1.16,.5,.5),(1.12,.35,.5),(1.12,.65,.5),(1.12,.5,.38),(1.12,.5,.62)]
-
-          def build_one(sku):
-            page,text,s=find_page(sku)
-            urls=product_images(text,page)
-            originals=[]
-            seen_content=set()
-            for u in urls[:40]:
-              try:
-                rr=get(s,u)
-                im=Image.open(io.BytesIO(rr.content)); im.load()
-                if im.width<180 or im.height<180: continue
-                sig=(im.width,im.height,len(rr.content),rr.content[:64])
-                if sig in seen_content: continue
-                seen_content.add(sig)
-                originals.append((u,im.copy()))
-                if len(originals)>=8: break
-              except Exception:
-                pass
-            if not originals:
-              raise RuntimeError('no usable current exact-product images')
-            built=[]
-            for u,im in originals[:8]:
-              built.append((u,white_34(im)))
-            vi=0
-            while len(built)<8:
-              u,im=originals[len(built)%len(originals)]
-              zoom,ox,oy=variants[vi%len(variants)]; vi+=1
-              built.append((u,white_34(im,zoom,ox,oy)))
-            files={f'luggage-20260812/{sku}/{sku}_{i}.jpg': b for i,(u,b) in enumerate(built[:8],1)}
-            return sku,files,{
-              'sku':sku,'page':page,'unique_source_images':len(originals),
-              'source_images':[u for u,_ in originals],
-              'built_from':[u for u,_ in built[:8]]
-            }
-
-          results={}; all_files={}
+          report={}
           with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
-            futs={ex.submit(build_one,sku):sku for sku in skus}
-            for fut in concurrent.futures.as_completed(futs):
-              sku=futs[fut]
-              try:
-                sku2,files,report=fut.result(); all_files.update(files); results[sku2]={'ok':True,**report}
-                print('OK',sku2,report['page'],report['unique_source_images'])
-              except Exception as e:
-                results[sku]={'ok':False,'error':str(e)}; print('FAIL',sku,e)
+            for sku,data in ex.map(work,skus):
+              report[sku]=data
+              print(sku,'OK' if data.get('ok') else 'FAIL',data.get('page') or data.get('error'),data.get('image_count',''))
 
-          # Include report in the same commit.
-          report_bytes=json.dumps(results,ensure_ascii=False,indent=2).encode('utf-8')
-          all_files['luggage-20260812/report.json']=report_bytes
-
-          # Create blobs concurrently.
-          def create_blob(item):
-            path,data=item
-            r=gh.post(f'https://api.github.com/repos/{repo}/git/blobs',json={
-              'content':base64.b64encode(data).decode('ascii'),'encoding':'base64'
-            },timeout=60)
-            r.raise_for_status(); return path,r.json()['sha']
-
-          entries=[]
-          with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
-            for path,sha in ex.map(create_blob,all_files.items()):
-              entries.append({'path':path,'mode':'100644','type':'blob','sha':sha})
-
-          ref=gh.get(f'https://api.github.com/repos/{repo}/git/ref/heads/{branch}',timeout=30); ref.raise_for_status()
-          parent=ref.json()['object']['sha']
-          c=gh.get(f'https://api.github.com/repos/{repo}/git/commits/{parent}',timeout=30); c.raise_for_status()
-          base_tree=c.json()['tree']['sha']
-          tr=gh.post(f'https://api.github.com/repos/{repo}/git/trees',json={'base_tree':base_tree,'tree':entries},timeout=60); tr.raise_for_status()
-          cm=gh.post(f'https://api.github.com/repos/{repo}/git/commits',json={
-            'message':'Replace luggage photos with current exact 21vek images 20260812',
-            'tree':tr.json()['sha'],'parents':[parent]
-          },timeout=60); cm.raise_for_status()
-          up=gh.patch(f'https://api.github.com/repos/{repo}/git/refs/heads/{branch}',json={'sha':cm.json()['sha'],'force':False},timeout=60); up.raise_for_status()
-          print('COMMIT',cm.json()['sha'],'files',len(entries),'ok',sum(1 for x in results.values() if x.get('ok')),'of',len(skus))
+          repo=os.environ['REPOSITORY']; branch=os.environ.get('BRANCH') or 'main'; token=os.environ['GH_TOKEN']
+          gh=requests.Session(); gh.headers.update({
+            'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json',
+            'X-GitHub-Api-Version':'2022-11-28','User-Agent':'21vek-luggage-links'
+          })
+          path='luggage-20260812/current_21vek_links.json'
+          api=f'https://api.github.com/repos/{repo}/contents/{path}'
+          existing=gh.get(api,params={'ref':branch},timeout=30)
+          payload={
+            'message':'Update current exact 21vek luggage photo links 20260812',
+            'content':base64.b64encode(json.dumps(report,ensure_ascii=False,indent=2).encode()).decode(),
+            'branch':branch
+          }
+          if existing.status_code==200: payload['sha']=existing.json()['sha']
+          elif existing.status_code!=404: existing.raise_for_status()
+          r=gh.put(api,json=payload,timeout=60); r.raise_for_status()
+          print('saved',path,'ok',sum(1 for x in report.values() if x.get('ok')),'of',len(report))
           PY
