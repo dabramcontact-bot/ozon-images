@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: python3 -m pip install -q requests pillow
-      - name: Fetch exact images, convert to 3x4 and upload
+      - name: Fetch exact Glow Deluxe images, convert to 3x4 and upload
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -28,47 +28,37 @@ jobs:
           import requests
           from PIL import Image
 
-          # (source_url, zoom, horizontal_focus, vertical_focus)
-          # Greywood has five unique exact-model product shots; positions 6–8 are safe crops
-          # of those exact same model images, as permitted by the Ozon photo workflow.
-          products = {
-            '5846888': [
-              ('https://intexpartner.com/media/productimg/1802/28442EX_1_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/1802/Senza-titolo-1_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/1802/28442EX_2_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/1802/28442EX_3_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/1802/28442EX_5_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/1802/28442EX_1_preview.webp', 1.12, .50, .50),
-              ('https://intexpartner.com/media/productimg/1802/Senza-titolo-1_preview.webp', 1.18, .50, .50),
-              ('https://intexpartner.com/media/productimg/1802/28442EX_3_preview.webp', 1.12, .50, .42),
-            ],
-            '10500500': [
-              ('https://intexpartner.com/media/productimg/2026/28494_static_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/2026/28494_static_2_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/2026/28494np_static_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/2026/28494_inuse_2_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/2026/28494_static_6_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/2026/28494_inuse_4_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/2026/28494_static_3_preview.webp', 1.00, .50, .50),
-              ('https://intexpartner.com/media/productimg/2026/28494_detail_preview.webp', 1.00, .50, .50),
-            ],
-          }
+          sku = '10500500'
+          urls = [
+            'https://media.intex.fr/13463-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+            'https://media.intex.fr/13464-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+            'https://media.intex.fr/13465-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+            'https://media.intex.fr/13466-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+            'https://media.intex.fr/13467-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+            'https://media.intex.fr/13468-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+            'https://media.intex.fr/13469-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+            'https://media.intex.fr/13470-cart_default/28494np-spa-gonflable-galaxie-4-places.jpg',
+          ]
 
           token = os.environ['GH_TOKEN']
           repo = os.environ['REPOSITORY']
           branch = os.environ.get('BRANCH', 'main')
           api = f'https://api.github.com/repos/{repo}/contents'
-          s = requests.Session()
-          s.headers.update({
+          gh = requests.Session()
+          gh.headers.update({
               'Authorization': f'Bearer {token}',
               'Accept': 'application/vnd.github+json',
               'X-GitHub-Api-Version': '2022-11-28',
               'User-Agent': 'ozon-intex-photo-builder',
           })
-          source = requests.Session()
-          source.headers.update({'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en-US,en;q=0.9'})
+          src = requests.Session()
+          src.headers.update({
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36',
+              'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'Referer': 'https://www.intex.fr/',
+          })
 
-          def pad34(im, zoom=1.0, ox=.5, oy=.5):
+          def pad34(im):
               if im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info):
                   rgba = im.convert('RGBA')
                   bg = Image.new('RGBA', rgba.size, 'white')
@@ -76,37 +66,30 @@ jobs:
                   im = bg.convert('RGB')
               else:
                   im = im.convert('RGB')
-              if zoom > 1:
-                  w, h = im.size
-                  nw, nh = max(1, int(w/zoom)), max(1, int(h/zoom))
-                  left = max(0, min(w-nw, int((w-nw)*ox)))
-                  top = max(0, min(h-nh, int((h-nh)*oy)))
-                  im = im.crop((left, top, left+nw, top+nh))
               im.thumbnail((840, 1140), Image.Resampling.LANCZOS)
               canvas = Image.new('RGB', (900, 1200), 'white')
               canvas.paste(im, ((900-im.width)//2, (1200-im.height)//2))
               return canvas
 
-          for sku, specs in products.items():
-              for idx, (url, zoom, ox, oy) in enumerate(specs, 1):
-                  r = source.get(url, timeout=40)
-                  r.raise_for_status()
-                  im = Image.open(io.BytesIO(r.content)); im.load()
-                  ready = pad34(im, zoom, ox, oy)
-                  buf = io.BytesIO()
-                  ready.save(buf, 'JPEG', quality=88, optimize=True)
-                  path = f'{sku}/{sku}_{idx}.jpg'
-                  existing = s.get(f'{api}/{path}', params={'ref': branch}, timeout=30)
-                  payload = {
-                      'message': f'Add {sku} image {idx} 3x4',
-                      'content': base64.b64encode(buf.getvalue()).decode('ascii'),
-                      'branch': branch,
-                  }
-                  if existing.status_code == 200:
-                      payload['sha'] = existing.json()['sha']
-                  elif existing.status_code != 404:
-                      existing.raise_for_status()
-                  put = s.put(f'{api}/{path}', json=payload, timeout=60)
-                  put.raise_for_status()
-                  print('uploaded', path, ready.size, len(buf.getvalue()))
+          for idx, url in enumerate(urls, 1):
+              r = src.get(url, timeout=40)
+              r.raise_for_status()
+              im = Image.open(io.BytesIO(r.content)); im.load()
+              ready = pad34(im)
+              buf = io.BytesIO()
+              ready.save(buf, 'JPEG', quality=90, optimize=True)
+              path = f'{sku}/{sku}_{idx}.jpg'
+              existing = gh.get(f'{api}/{path}', params={'ref': branch}, timeout=30)
+              payload = {
+                  'message': f'Add {sku} image {idx} 3x4',
+                  'content': base64.b64encode(buf.getvalue()).decode('ascii'),
+                  'branch': branch,
+              }
+              if existing.status_code == 200:
+                  payload['sha'] = existing.json()['sha']
+              elif existing.status_code != 404:
+                  existing.raise_for_status()
+              put = gh.put(f'{api}/{path}', json=payload, timeout=60)
+              put.raise_for_status()
+              print('uploaded', path, 'source', im.size, 'output', ready.size)
           PY
