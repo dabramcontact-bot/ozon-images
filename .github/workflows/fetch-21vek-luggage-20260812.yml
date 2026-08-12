@@ -1,4 +1,4 @@
-name: Retry remaining 21vek luggage photo links 20260812
+name: Build compact luggage photo map 20260812
 
 on:
   push:
@@ -12,11 +12,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Install parser
-        run: python3 -m pip install -q requests beautifulsoup4
-      - name: Retry remaining exact 21vek pages and merge report
+      - name: Build compact map from verified report
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -24,76 +22,22 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import base64, concurrent.futures, json, os, re, time, random, html as htmllib
-          from urllib.parse import urljoin
-          import requests
-          from bs4 import BeautifulSoup
-
-          skus=['10474234','10474105','10473928','10473947','10474006','10474032','10474185','10474056','10474028','10474192','10473908','10473967','10474059','10474210','10473916','10473902']
+          import base64,json,os,requests
           repo=os.environ['REPOSITORY']; branch=os.environ.get('BRANCH') or 'main'; token=os.environ['GH_TOKEN']
-          gh=requests.Session(); gh.headers.update({'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'21vek-luggage-links'})
-          path='luggage-20260812/current_21vek_links.json'; api=f'https://api.github.com/repos/{repo}/contents/{path}'
-          old=gh.get(api,params={'ref':branch},timeout=30); old.raise_for_status()
-          oldj=old.json(); report=json.loads(base64.b64decode(oldj['content']).decode('utf-8'))
-
-          def make_session():
-            s=requests.Session(); s.headers.update({'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/150 Safari/537.36','Accept-Language':'ru-RU,ru;q=0.9,en;q=0.8','Referer':'https://www.21vek.by/'})
-            return s
-
-          def get_page(sku):
-            s=make_session(); url=f'https://www.21vek.by/luggage/tero_doublew_{sku}.html'
-            last=None
-            for attempt in range(4):
-              try:
-                r=s.get(url,timeout=35,allow_redirects=True)
-                if r.status_code==429:
-                  last=f'429 on attempt {attempt+1}'; time.sleep(2.5+attempt*3+random.random()*2); continue
-                r.raise_for_status()
-                if sku not in r.text: raise RuntimeError('SKU not confirmed on exact page')
-                return r.url,r.text
-              except Exception as e:
-                last=str(e); time.sleep(1.5+attempt*2)
-            raise RuntimeError(last or 'page fetch failed')
-
-          def images(text,base):
-            soup=BeautifulSoup(text,'html.parser'); urls=[]
-            for sc in soup.find_all('script',type='application/ld+json'):
-              try:data=json.loads(sc.string or '')
-              except Exception:continue
-              stack=data if isinstance(data,list) else [data]
-              while stack:
-                x=stack.pop()
-                if isinstance(x,list):stack.extend(x);continue
-                if not isinstance(x,dict):continue
-                if '@graph' in x:stack.append(x['@graph'])
-                typ=x.get('@type')
-                if typ=='Product' or (isinstance(typ,list) and 'Product' in typ):
-                  ims=x.get('image') or []
-                  if isinstance(ims,(str,dict)):ims=[ims]
-                  for im in ims:
-                    if isinstance(im,dict):im=im.get('url') or im.get('contentUrl')
-                    if im:
-                      u=urljoin(base,str(im)).replace('\\/','/').split('?')[0]
-                      if u not in urls:urls.append(u)
-            for pat in [r'https?:\\?/\\?/cdn21vek\.by/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)',r'https?://cdn21vek\.by/[^"\'<> ]+?\.(?:jpg|jpeg|png|webp)']:
-              for u in re.findall(pat,text,re.I):
-                u=htmllib.unescape(u).replace('\\/','/').split('?')[0]
-                if u not in urls:urls.append(u)
-            return urls
-
-          def work(sku):
-            try:
-              page,text=get_page(sku); ims=images(text,page)
-              if not ims:raise RuntimeError('no product images found')
-              return sku,{'ok':True,'page':page,'images':ims[:14],'image_count':len(ims)}
-            except Exception as e:return sku,{'ok':False,'error':str(e)}
-
-          with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
-            for sku,data in ex.map(work,skus):
-              report[sku]=data; print(sku,'OK' if data.get('ok') else 'FAIL',data.get('page') or data.get('error'))
-              time.sleep(.4)
-
-          payload={'message':'Retry remaining exact 21vek luggage photo links','content':base64.b64encode(json.dumps(report,ensure_ascii=False,indent=2).encode()).decode(),'branch':branch,'sha':oldj['sha']}
-          r=gh.put(api,json=payload,timeout=60); r.raise_for_status()
-          print('saved; total ok',sum(1 for x in report.values() if x.get('ok')),'of',len(report))
+          s=requests.Session(); s.headers.update({'Authorization':f'Bearer {token}','Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'luggage-map'})
+          src='luggage-20260812/current_21vek_links.json'; api=f'https://api.github.com/repos/{repo}/contents/{src}'
+          j=s.get(api,params={'ref':branch},timeout=30).json(); report=json.loads(base64.b64decode(j['content']).decode())
+          lines=[]
+          for sku,data in report.items():
+            if not data.get('ok'): raise RuntimeError(f'{sku} not verified')
+            imgs=[u for u in data.get('images',[]) if '/imgproxy/large/' in u]
+            if len(imgs)<8: raise RuntimeError(f'{sku} has only {len(imgs)} large images')
+            lines.append('\t'.join([sku]+imgs[:8]))
+          content='\n'.join(lines)+'\n'
+          out='luggage-20260812/current_21vek_8.tsv'; outapi=f'https://api.github.com/repos/{repo}/contents/{out}'
+          old=s.get(outapi,params={'ref':branch},timeout=30)
+          payload={'message':'Create compact verified luggage photo map','content':base64.b64encode(content.encode()).decode(),'branch':branch}
+          if old.status_code==200: payload['sha']=old.json()['sha']
+          elif old.status_code!=404: old.raise_for_status()
+          r=s.put(outapi,json=payload,timeout=60); r.raise_for_status(); print('rows',len(lines))
           PY
